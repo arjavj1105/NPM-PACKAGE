@@ -21,7 +21,6 @@ class ProductService {
    * @returns {Promise<Array>}
    */
   async getAllProducts(filter = {}) {
-    // Simulate database lookup latency
     await delay(200);
 
     let products = await productDatabase.findAll();
@@ -48,10 +47,54 @@ class ProductService {
    * @returns {Promise<Object|null>}
    */
   async getProductById(id) {
-    // Simulate database lookup latency
     await delay(150);
-
     return productDatabase.findById(id);
+  }
+
+  /**
+   * Creates a new product.
+   *
+   * @param {Object} productData
+   * @returns {Promise<Object>}
+   */
+  async createProduct(productData) {
+    await delay(50);
+    return productDatabase.create(productData);
+  }
+
+  /**
+   * Fully updates an existing product.
+   *
+   * @param {number|string} id
+   * @param {Object} productData
+   * @returns {Promise<Object|null>}
+   */
+  async updateProduct(id, productData) {
+    await delay(50);
+    return productDatabase.update(id, productData);
+  }
+
+  /**
+   * Partially updates an existing product.
+   *
+   * @param {number|string} id
+   * @param {Object} partialData
+   * @returns {Promise<Object|null>}
+   */
+  async patchProduct(id, partialData) {
+    await delay(50);
+    return productDatabase.patch(id, partialData);
+  }
+
+  /**
+   * Deletes a product by ID.
+   *
+   * @param {number|string} id
+   * @returns {Promise<boolean>}
+   */
+  async deleteProduct(id) {
+    await delay(50);
+    return productDatabase.delete(id);
   }
 }
 

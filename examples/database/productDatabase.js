@@ -2,10 +2,17 @@
 
 /**
  * In-memory Mock Database for Demonstration.
- * Simulates a real database with seeded product records.
+ * Simulates a real database with seeded product records and CRUD operations.
  */
 class ProductDatabase {
   constructor() {
+    this.reset();
+  }
+
+  /**
+   * Resets database to initial seeded records.
+   */
+  reset() {
     this.products = [
       {
         id: 1,
@@ -55,19 +62,100 @@ class ProductDatabase {
    * @returns {Promise<Array>}
    */
   async findAll() {
-    // Return a shallow clone of the products to simulate DB query isolation
-    return [...this.products];
+    return this.products.map((p) => ({ ...p }));
   }
 
   /**
    * Finds a product by its numeric ID.
-   * @param {number} id
+   * @param {number|string} id
    * @returns {Promise<Object|null>}
    */
   async findById(id) {
     const numericId = Number(id);
     const product = this.products.find((p) => p.id === numericId);
     return product ? { ...product } : null;
+  }
+
+  /**
+   * Inserts a new product into the database.
+   * @param {Object} data
+   * @returns {Promise<Object>}
+   */
+  async create(data) {
+    const nextId = this.products.length > 0
+      ? Math.max(...this.products.map((p) => p.id)) + 1
+      : 1;
+
+    const newProduct = {
+      id: nextId,
+      name: data.name,
+      category: data.category || 'General',
+      price: Number(data.price) || 0,
+      inStock: data.inStock !== undefined ? Boolean(data.inStock) : true,
+      description: data.description || '',
+    };
+
+    this.products.push(newProduct);
+    return { ...newProduct };
+  }
+
+  /**
+   * Fully updates an existing product.
+   * @param {number|string} id
+   * @param {Object} data
+   * @returns {Promise<Object|null>}
+   */
+  async update(id, data) {
+    const numericId = Number(id);
+    const index = this.products.findIndex((p) => p.id === numericId);
+    if (index === -1) {
+      return null;
+    }
+
+    const updated = {
+      id: numericId,
+      name: data.name !== undefined ? data.name : this.products[index].name,
+      category: data.category !== undefined ? data.category : this.products[index].category,
+      price: data.price !== undefined ? Number(data.price) : this.products[index].price,
+      inStock: data.inStock !== undefined ? Boolean(data.inStock) : this.products[index].inStock,
+      description: data.description !== undefined ? data.description : this.products[index].description,
+    };
+
+    this.products[index] = updated;
+    return { ...updated };
+  }
+
+  /**
+   * Partially updates (patches) an existing product.
+   * @param {number|string} id
+   * @param {Object} partialData
+   * @returns {Promise<Object|null>}
+   */
+  async patch(id, partialData) {
+    const numericId = Number(id);
+    const product = this.products.find((p) => p.id === numericId);
+    if (!product) {
+      return null;
+    }
+
+    Object.assign(product, partialData, { id: numericId });
+    return { ...product };
+  }
+
+  /**
+   * Deletes a product by ID.
+   * @param {number|string} id
+   * @returns {Promise<boolean>}
+   */
+  async delete(id) {
+    const numericId = Number(id);
+    const index = this.products.findIndex((p) => p.id === numericId);
+    if (index === -1) {
+      return false;
+    }
+
+    this.products.splice(index, 1);
+    return true;
   }
 }
 

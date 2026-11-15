@@ -40,12 +40,45 @@ function extractCachableHeaders(res) {
 }
 
 /**
+ * Resolves tags for a request based on middleware configuration.
+ *
+ * @param {import('express').Request} req - Express request
+ * @param {string[]|Function} tagConfig - Tag configuration
+ * @returns {string[]}
+ */
+function resolveTags(req, tagConfig) {
+  if (typeof tagConfig === 'function') {
+    try {
+      const result = tagConfig(req);
+      if (typeof result === 'string') {
+        return result.trim() ? [result.trim()] : [];
+      }
+      if (Array.isArray(result)) {
+        return result
+          .filter((t) => typeof t === 'string' && t.trim() !== '')
+          .map((t) => t.trim());
+      }
+      return [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  if (Array.isArray(tagConfig)) {
+    return tagConfig;
+  }
+
+  return [];
+}
+
+/**
  * Creates an Express caching middleware instance.
  *
  * @param {Object} [options={}] - Configuration options for caching.
  * @param {number} [options.ttl=60] - Expiration time in seconds.
  * @param {boolean} [options.enabled=true] - Toggle caching on or off.
  * @param {Function} [options.keyGenerator] - Custom request-to-key mapping function.
+ * @param {string|string[]|Function} [options.tags=[]] - Resource tags or tag resolver function.
  * @param {CacheStore} [options.store] - Optional custom CacheStore instance.
  * @returns {import('express').RequestHandler} Express middleware function.
  */
@@ -120,6 +153,8 @@ function createCacheMiddleware(options = {}) {
 
         if (isSuccess && body !== undefined) {
           const cachableHeaders = extractCachableHeaders(res);
+          const entryTags = resolveTags(req, config.tags);
+
           store.set(
             key,
             {
@@ -127,7 +162,8 @@ function createCacheMiddleware(options = {}) {
               statusCode: res.statusCode,
               headers: cachableHeaders,
             },
-            config.ttl
+            config.ttl,
+            entryTags
           );
         }
       } catch (err) {
@@ -144,4 +180,5 @@ function createCacheMiddleware(options = {}) {
 module.exports = {
   createCacheMiddleware,
   extractCachableHeaders,
+  resolveTags,
 };

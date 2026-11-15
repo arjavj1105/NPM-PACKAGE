@@ -52,4 +52,38 @@ describe('ValidateOptions - Unit Tests', () => {
     assert.throws(() => validateOptions({ keyGenerator: 'func' }, defaultKeyGenerator), TypeError);
     assert.throws(() => validateOptions({ keyGenerator: {} }, defaultKeyGenerator), TypeError);
   });
+
+  test('validates tags configuration', () => {
+    // String tag normalized to array
+    const opts1 = validateOptions({ tags: 'products' }, defaultKeyGenerator);
+    assert.deepEqual(opts1.tags, ['products']);
+
+    // Array of string tags
+    const opts2 = validateOptions({ tags: ['products', 'item:1'] }, defaultKeyGenerator);
+    assert.deepEqual(opts2.tags, ['products', 'item:1']);
+
+    // Function tag resolver
+    const fn = (req) => ['products'];
+    const opts3 = validateOptions({ tags: fn }, defaultKeyGenerator);
+    assert.equal(opts3.tags, fn);
+
+    // Default is empty array
+    const opts4 = validateOptions({}, defaultKeyGenerator);
+    assert.deepEqual(opts4.tags, []);
+
+    // Invalid tag types throw TypeError
+    assert.throws(() => validateOptions({ tags: 123 }, defaultKeyGenerator), TypeError);
+    assert.throws(() => validateOptions({ tags: [123] }, defaultKeyGenerator), TypeError);
+  });
+
+  test('validates methods configuration', () => {
+    const opts = validateOptions({ methods: ['post', 'delete'] }, defaultKeyGenerator);
+    assert.deepEqual(opts.methods, ['POST', 'DELETE']);
+
+    const defaultOpts = validateOptions({}, defaultKeyGenerator);
+    assert.deepEqual(defaultOpts.methods, ['POST', 'PUT', 'PATCH', 'DELETE']);
+
+    assert.throws(() => validateOptions({ methods: 'POST' }, defaultKeyGenerator), TypeError);
+    assert.throws(() => validateOptions({ methods: [123] }, defaultKeyGenerator), TypeError);
+  });
 });

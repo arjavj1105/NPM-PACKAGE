@@ -13,17 +13,37 @@ app.use(express.json());
 app.get('/', (req, res) => {
   res.status(200).json({
     name: 'Express Response Cache Demo API',
-    version: '1.0.0',
+    version: '1.1.0',
     endpoints: [
       {
         path: '/products',
         method: 'GET',
-        description: 'Get all products (cached for 30s). Supports ?category= and ?inStock=',
+        description: 'Get all products (cached for 30s with tag "products"). Supports ?category= and ?inStock=',
       },
       {
         path: '/products/:id',
         method: 'GET',
-        description: 'Get product by ID (cached for 60s)',
+        description: 'Get product by ID (cached for 60s with tag "product:<id>")',
+      },
+      {
+        path: '/products',
+        method: 'POST',
+        description: 'Create product (invalidates tag "products")',
+      },
+      {
+        path: '/products/:id',
+        method: 'PUT',
+        description: 'Replace product (invalidates tags "products" and "product:<id>")',
+      },
+      {
+        path: '/products/:id',
+        method: 'PATCH',
+        description: 'Patch product (invalidates tags "products" and "product:<id>")',
+      },
+      {
+        path: '/products/:id',
+        method: 'DELETE',
+        description: 'Delete product (invalidates tags "products" and "product:<id>")',
       },
     ],
     headers: {
@@ -51,9 +71,9 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 if (require.main === module) {
   const server = app.listen(PORT, () => {
     console.log(`Demo server listening on http://localhost:${PORT}`);
-    console.log('Try testing caching with curl:');
+    console.log('Try testing caching & invalidation with curl:');
     console.log(`  curl -i http://localhost:${PORT}/products`);
-    console.log(`  curl -i http://localhost:${PORT}/products/1`);
+    console.log(`  curl -i -X POST http://localhost:${PORT}/products -H "Content-Type: application/json" -d '{"name":"New Item","price":49.99}'`);
   });
 
   // Graceful shutdown

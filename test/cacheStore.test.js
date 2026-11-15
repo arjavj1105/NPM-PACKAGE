@@ -158,4 +158,93 @@ describe('CacheStore - Unit Tests', () => {
 
     store.clear();
   });
+
+  test('10. Tag indexing and invalidateByTag removes targeted entries only', () => {
+    const store = new CacheStore({ cleanupIntervalMs: 0 });
+    store.set('p:list', [{ id: 1 }, { id: 2 }], 60, ['products']);
+    store.set('p:1', { id: 1 }, 60, ['products', 'product:1']);
+    store.set('p:2', { id: 2 }, 60, ['products', 'product:2']);
+    store.set('u:list', [{ id: 10 }], 60, ['users']);
+
+    assert.equal(store.size(), 4);
+    assert.deepEqual(store.getTags('p:1'), ['products', 'product:1']);
+    assert.equal(store.hasTag('product:1'), true);
+    assert.equal(store.hasTag('users'), true);
+
+    // Invalidate product:1 only
+    const count = store.invalidateByTag('product:1');
+    assert.equal(count, 1);
+    assert.equal(store.has('p:1'), false);
+    assert.equal(store.has('p:2'), true);
+    assert.equal(store.has('p:list'), true);
+    assert.equal(store.has('u:list'), true);
+    assert.equal(store.hasTag('product:1'), false);
+    assert.equal(store.hasTag('products'), true);
+
+    // Invalidate products collection
+    const count2 = store.invalidateByTag('products');
+    assert.equal(count2, 2); // p:list and p:2
+    assert.equal(store.has('p:list'), false);
+    assert.equal(store.has('p:2'), false);
+    assert.equal(store.has('u:list'), true); // Users unaffected!
+
+    store.clear();
+  });
+
+  test('11. InvalidateTags removes multiple tags and handles non-existent tags safely', () => {
+    const store = new CacheStore({ cleanupIntervalMs: 0 });
+    store.set('k1', 'val1', 60, ['tagA']);
+    store.set('k2', 'val2', 60, ['tagB']);
+    store.set('k3', 'val3', 60, ['tagA', 'tagB']);
+    store.set('k4', 'val4', 60, ['tagC']);
+
+    // Invalidate both tagA and tagB simultaneously
+    const removed = store.invalidateTags(['tagA', 'tagB']);
+    assert.equal(removed, 3); // k1, k2, k3
+    assert.equal(store.has('k1'), false);
+    assert.equal(store.has('k2'), false);
+    assert.equal(store.has('k3'), false);
+    assert.equal(store.has('k4'), true); // k4 unaffected
+
+    // Non-existent tag returns 0
+    assert.equal(store.invalidateByTag('nonexistent-tag'), 0);
+    assert.equal(store.invalidateTags(['tagX', 'tagY']), 0);
+
+    store.clear();
+  });
+
+  test('12. Lazy expiration and pruneExpired clean up tag index', async () => {
+    const store = new CacheStore({ cleanupIntervalMs: 0 });
+    store.set('quick1', 'val1', 0.03, ['quickTag']);
+    store.set('quick2', 'val2', 0.03, ['quickTag']);
+
+    assert.equal(store.hasTag('quickTag'), true);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Lazy removal on get()
+    store.get('quick1');
+    assert.equal(store.has('quick1'), false);
+
+    // Prune sweeps quick2
+    store.pruneExpired();
+    assert.equal(store.has('quick2'), false);
+    assert.equal(store.hasTag('quickTag'), false);
+
+    store.clear();
+  });
+
+  test('13. Overwriting key refreshes tag associations', () => {
+    const store = new CacheStore({ cleanupIntervalMs: 0 });
+    store.set('item:100', 'initial', 60, ['oldTag']);
+    assert.equal(store.hasTag('oldTag'), true);
+
+    // Overwrite with newTag
+    store.set('item:100', 'updated', 60, ['newTag']);
+    assert.equal(store.hasTag('oldTag'), false);
+    assert.equal(store.hasTag('newTag'), true);
+    assert.deepEqual(store.getTags('item:100'), ['newTag']);
+
+    store.clear();
+  });
 });
