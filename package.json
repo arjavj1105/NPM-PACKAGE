@@ -1,8 +1,17 @@
 {
   "name": "express-response-cache",
-  "version": "0.1.0",
-  "description": "Lightweight, configurable in-memory response caching middleware for Express.js",
+  "version": "1.0.0",
+  "description": "Lightweight, zero-dependency in-memory response caching and tag-based invalidation middleware for Express.js",
   "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "node --test test/**/*.test.js",
     "start:example": "node examples/server.js"
@@ -14,10 +23,21 @@
     "in-memory",
     "response-cache",
     "ttl",
+    "invalidation",
+    "cache-invalidation",
+    "tag-based",
     "performance"
   ],
   "author": "Arjav Jain",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arjavj1105/NPM-PACKAGE.git"
+  },
+  "bugs": {
+    "url": "https://github.com/arjavj1105/NPM-PACKAGE/issues"
+  },
+  "homepage": "https://github.com/arjavj1105/NPM-PACKAGE#readme",
   "peerDependencies": {
     "express": "^4.0.0 || ^5.0.0"
   },
