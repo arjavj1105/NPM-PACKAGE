@@ -6,15 +6,17 @@ Designed to eliminate redundant database queries and API calls by transparently 
 
 ---
 
-## Features (Milestone 1 — Foundation)
+## Features
 
-- **GET Response Caching**: Seamlessly caches successful HTTP 2xx responses.
-- **In-Memory Storage**: High-performance key-value store with millisecond access times.
-- **Configurable TTL**: Set expiration per route or globally (default: 60 seconds).
+- **GET Response Caching**: Seamlessly caches successful HTTP 2xx responses while bypassing non-GET methods and error responses (4xx/5xx).
+- **In-Memory Storage**: High-performance key-value store with sub-millisecond lookups.
+- **Configurable TTL**: Defaults to 60 seconds with simple per-route or global customization.
 - **Intelligent Query Normalization**: Eliminates cache misses caused by differing query parameter orders (e.g., `?sort=asc&limit=10` and `?limit=10&sort=asc` share the same cache key).
+- **Header Preservation**: Safely preserves application headers (e.g., `Content-Type`, `Cache-Control`, `ETag`, and custom app headers) across cache hits while excluding transient transport headers.
 - **Cache Status Headers**: Inspect responses with `X-Cache: HIT` or `X-Cache: MISS` alongside `X-Cache-Timestamp`.
-- **Automatic Cleanup**: Combines lazy expiration on access with background sweep timers to prevent memory leaks from inactive entries.
-- **Zero Runtime Dependencies**: Uses Node.js built-ins (`Map`, `URLSearchParams`), keeping your production bundle footprint minimal.
+- **Cache Metadata API**: Internal metadata access (`store.getMetadata(key)`) exposing `key`, `createdAt`, `expiresAt`, and `ttl` without exposing internal state.
+- **Automatic Cleanup**: Combines lazy expiration on access with unreferenced background sweep timers to prevent memory leaks from inactive entries.
+- **Zero Runtime Dependencies**: Uses Node.js built-ins (`Map`, `URLSearchParams`, `setInterval`), keeping your production bundle footprint minimal.
 
 ---
 
@@ -40,14 +42,14 @@ const cache = require('express-response-cache');
 
 const app = express();
 
-// Cache this endpoint for 30 seconds
+// Cache this endpoint for 30 seconds (custom TTL)
 app.get('/api/products', cache({ ttl: 30 }), (req, res) => {
   // Expensive database lookup
   res.json({ message: 'Fresh database data' });
 });
 
-// Cache product details for 60 seconds
-app.get('/api/products/:id', cache({ ttl: 60 }), (req, res) => {
+// Cache product details using the default 60-second TTL
+app.get('/api/products/:id', cache(), (req, res) => {
   res.json({ id: req.params.id, name: 'Product Name' });
 });
 
@@ -78,7 +80,7 @@ Pass an options object to `cache(options)`:
 
 | Option | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `ttl` | `number` | `60` | Time to live in seconds. Must be a positive number. |
+| `ttl` | `number` | `60` | Time to live in seconds. Must be a positive finite number. |
 | `enabled` | `boolean` | `true` | Toggle caching on or off dynamically. |
 | `keyGenerator` | `Function` | `defaultKeyGenerator` | Custom function receiving `(req)` that returns a unique string key. |
 | `store` | `CacheStore` | Internal instance | Custom `CacheStore` instance if sharing cache state across distinct middleware. |
@@ -93,6 +95,29 @@ const customKeyGen = (req) => {
 };
 
 app.get('/api/data', cache({ keyGenerator: customKeyGen }), handler);
+```
+
+---
+
+## Cache Metadata API
+
+When utilizing `createCache`, you gain direct access to the underlying `CacheStore` and its metadata API:
+
+```javascript
+const { createCache } = require('express-response-cache');
+
+const { middleware, store } = createCache({ ttl: 45 });
+
+app.get('/api/report', middleware, (req, res) => res.json({ status: 'ok' }));
+
+// Retrieve metadata for an active key
+const meta = store.getMetadata('GET:/api/report');
+if (meta) {
+  console.log(meta.key);        // 'GET:/api/report'
+  console.log(meta.createdAt);  // Epoch timestamp (ms)
+  console.log(meta.expiresAt);  // Epoch timestamp (ms)
+  console.log(meta.ttl);        // 45 (seconds)
+}
 ```
 
 ---
@@ -125,6 +150,10 @@ curl -i http://localhost:3000/products
 
 # Second request (HIT < 2ms)
 curl -i http://localhost:3000/products
+
+# Reverse query parameters share the same cache entry:
+curl -i "http://localhost:3000/products?category=Electronics&inStock=true"
+curl -i "http://localhost:3000/products?inStock=true&category=Electronics"
 ```
 
 ---
@@ -142,7 +171,7 @@ npm test
 ## Roadmap
 
 - **Commit 01 (15 Nov)**: Foundation — in-memory cache store, query normalization, Express middleware, configuration validation, example app, test suite. *(Completed)*
-- **Commit 02 (16 Nov)**: Core caching functionality & advanced caching mechanisms.
+- **Commit 02 (16 Nov)**: Core caching enhancement — response header preservation, metadata API, thorough TTL and scenario verification. *(Completed)*
 - **Commit 03 (16 Nov)**: Cache invalidation (mutations) & extended testing.
 - **Commit 04 (17 Nov)**: Documentation polish & package release.
 

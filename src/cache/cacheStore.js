@@ -59,6 +59,7 @@ class CacheStore {
     const expiresAt = now + (effectiveTtl * 1000);
 
     const entry = {
+      key,
       value,
       createdAt: now,
       expiresAt,
@@ -111,6 +112,27 @@ class CacheStore {
     }
 
     return entry;
+  }
+
+  /**
+   * Retrieves metadata for an active entry without exposing internal structure.
+   *
+   * @param {string} key - Cache identifier
+   * @returns {{ key: string, createdAt: number, expiresAt: number, ttl: number }|null}
+   */
+  getMetadata(key) {
+    const entry = this.getEntry(key);
+
+    if (!entry) {
+      return null;
+    }
+
+    return {
+      key: entry.key,
+      createdAt: entry.createdAt,
+      expiresAt: entry.expiresAt,
+      ttl: entry.ttl,
+    };
   }
 
   /**

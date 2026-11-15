@@ -194,4 +194,102 @@ describe('CacheMiddleware - Integration Tests', () => {
     assert.equal(resNotFound2.status, 404);
     assert.equal(resNotFound2.headers['x-cache'], 'MISS');
   });
+
+  test('preserves application response headers across cache HIT while omitting transport headers', async () => {
+    const app = express();
+
+    app.get(
+      '/headers-test',
+      cache({ ttl: 30 }),
+      (req, res) => {
+        res.setHeader('X-Custom-App-Header', 'custom-value-123');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.status(200).json({ ok: true });
+      }
+    );
+
+    // 1. MISS
+    const res1 = await request(app).get('/headers-test');
+    assert.equal(res1.status, 200);
+    assert.equal(res1.headers['x-cache'], 'MISS');
+    assert.equal(res1.headers['x-custom-app-header'], 'custom-value-123');
+    assert.equal(res1.headers['cache-control'], 'public, max-age=3600');
+
+    // 2. HIT
+    const res2 = await request(app).get('/headers-test');
+    assert.equal(res2.status, 200);
+    assert.equal(res2.headers['x-cache'], 'HIT');
+    assert.equal(res2.headers['x-custom-app-header'], 'custom-value-123');
+    assert.equal(res2.headers['cache-control'], 'public, max-age=3600');
+    assert.ok(res2.headers['x-cache-timestamp']);
+  });
+
+  test('different HTTP methods do not share cache entries', async () => {
+    const app = express();
+    app.use(express.json());
+    let getCount = 0;
+    let postCount = 0;
+
+    const cacheMw = cache({ ttl: 30 });
+
+    app.all('/shared-route', cacheMw, (req, res) => {
+      if (req.method === 'GET') {
+        getCount++;
+        return res.status(200).json({ method: 'GET', count: getCount });
+      }
+      postCount++;
+      return res.status(200).json({ method: req.method, count: postCount });
+    });
+
+    // 1. GET request caches
+    const resGet1 = await request(app).get('/shared-route');
+    assert.equal(resGet1.headers['x-cache'], 'MISS');
+    assert.equal(resGet1.body.count, 1);
+
+    // 2. POST to identical path does NOT use GET cache
+    const resPost = await request(app).post('/shared-route').send({ data: 1 });
+    assert.equal(resPost.headers['x-cache'], undefined);
+    assert.equal(resPost.body.method, 'POST');
+    assert.equal(resPost.body.count, 1);
+
+    // 3. Subsequent GET uses cache
+    const resGet2 = await request(app).get('/shared-route');
+    assert.equal(resGet2.headers['x-cache'], 'HIT');
+    assert.equal(resGet2.body.count, 1);
+    assert.equal(getCount, 1);
+  });
+
+  test('handles concurrent requests gracefully', async () => {
+    const app = express();
+    let handlerExecutions = 0;
+
+    app.get(
+      '/concurrent-test',
+      cache({ ttl: 20 }),
+      (req, res) => {
+        handlerExecutions++;
+        // Small delay to simulate ongoing handling
+        setTimeout(() => {
+          res.status(200).json({ executions: handlerExecutions });
+        }, 10);
+      }
+    );
+
+    // Launch 3 simultaneous requests
+    const [r1, r2, r3] = await Promise.all([
+      request(app).get('/concurrent-test'),
+      request(app).get('/concurrent-test'),
+      request(app).get('/concurrent-test'),
+    ]);
+
+    // All should succeed with status 200
+    assert.equal(r1.status, 200);
+    assert.equal(r2.status, 200);
+    assert.equal(r3.status, 200);
+
+    // Next request after completion must be a cache HIT
+    const rAfter = await request(app).get('/concurrent-test');
+    assert.equal(rAfter.status, 200);
+    assert.equal(rAfter.headers['x-cache'], 'HIT');
+  });
 });

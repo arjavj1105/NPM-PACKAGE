@@ -4,6 +4,41 @@ const { CacheStore } = require('../cache/cacheStore');
 const { defaultKeyGenerator } = require('../cache/cacheKey');
 const { validateOptions } = require('../utils/validateOptions');
 
+// Headers that are connection-specific, recalculated dynamically, or internal indicators
+const OMITTED_HEADERS = new Set([
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'content-length',
+  'x-cache',
+  'x-cache-timestamp',
+]);
+
+/**
+ * Extracts and filters response headers suitable for caching.
+ *
+ * @param {import('express').Response} res - Express response object
+ * @returns {Record<string, string|number|string[]>}
+ */
+function extractCachableHeaders(res) {
+  const headers = {};
+  const rawHeaders = typeof res.getHeaders === 'function' ? res.getHeaders() : {};
+
+  for (const [key, value] of Object.entries(rawHeaders)) {
+    const lowerKey = key.toLowerCase();
+    if (!OMITTED_HEADERS.has(lowerKey) && value !== undefined && value !== null) {
+      headers[key] = value;
+    }
+  }
+
+  return headers;
+}
+
 /**
  * Creates an Express caching middleware instance.
  *
@@ -15,11 +50,11 @@ const { validateOptions } = require('../utils/validateOptions');
  * @returns {import('express').RequestHandler} Express middleware function.
  */
 function createCacheMiddleware(options = {}) {
+  const config = validateOptions(options, defaultKeyGenerator);
+
   const store = options.store instanceof CacheStore
     ? options.store
-    : new CacheStore({ defaultTtl: options.ttl || 60 });
-
-  const config = validateOptions(options, defaultKeyGenerator);
+    : new CacheStore({ defaultTtl: config.ttl });
 
   /**
    * Express middleware handler.
@@ -51,14 +86,16 @@ function createCacheMiddleware(options = {}) {
       if (cached && cached.value) {
         const { body, statusCode, headers } = cached.value;
 
+        // Restore preserved application response headers
+        if (headers && typeof headers === 'object') {
+          for (const [headerName, headerVal] of Object.entries(headers)) {
+            res.setHeader(headerName, headerVal);
+          }
+        }
+
         // Add cache indicator headers
         res.setHeader('X-Cache', 'HIT');
         res.setHeader('X-Cache-Timestamp', new Date(cached.createdAt).toISOString());
-
-        // Restore cached content-type if present
-        if (headers && headers['content-type']) {
-          res.setHeader('Content-Type', headers['content-type']);
-        }
 
         // Return cached status and response body
         return res.status(statusCode || 200).send(body);
@@ -82,15 +119,13 @@ function createCacheMiddleware(options = {}) {
         const isSuccess = res.statusCode >= 200 && res.statusCode < 300;
 
         if (isSuccess && body !== undefined) {
-          const contentType = res.getHeader('content-type');
+          const cachableHeaders = extractCachableHeaders(res);
           store.set(
             key,
             {
               body,
               statusCode: res.statusCode,
-              headers: {
-                'content-type': contentType,
-              },
+              headers: cachableHeaders,
             },
             config.ttl
           );
@@ -108,4 +143,5 @@ function createCacheMiddleware(options = {}) {
 
 module.exports = {
   createCacheMiddleware,
+  extractCachableHeaders,
 };

@@ -1,6 +1,6 @@
 'use strict';
 
-const { createCacheMiddleware } = require('./middleware/cacheMiddleware');
+const { createCacheMiddleware, extractCachableHeaders } = require('./middleware/cacheMiddleware');
 const { CacheStore } = require('./cache/cacheStore');
 const { defaultKeyGenerator, normalizeQueryString } = require('./cache/cacheKey');
 const { validateOptions } = require('./utils/validateOptions');
@@ -18,6 +18,7 @@ cache.CacheStore = CacheStore;
 cache.defaultKeyGenerator = defaultKeyGenerator;
 cache.normalizeQueryString = normalizeQueryString;
 cache.validateOptions = validateOptions;
+cache.extractCachableHeaders = extractCachableHeaders;
 
 /**
  * Helper factory that creates and returns both the middleware and its underlying store instance.
@@ -27,8 +28,10 @@ cache.validateOptions = validateOptions;
  * @returns {{ middleware: Function, store: CacheStore }}
  */
 cache.createCache = function createCache(options = {}) {
+  const config = validateOptions(options, defaultKeyGenerator);
+
   const store = new CacheStore({
-    defaultTtl: options.ttl || 60,
+    defaultTtl: config.ttl,
     cleanupIntervalMs: options.cleanupIntervalMs,
   });
 

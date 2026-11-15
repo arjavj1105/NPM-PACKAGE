@@ -109,4 +109,53 @@ describe('CacheStore - Unit Tests', () => {
     store.stopCleanup();
     assert.equal(store.cleanupTimer, null);
   });
+
+  test('7. Cache metadata API: provides accurate timestamps and key information', () => {
+    const store = new CacheStore({ cleanupIntervalMs: 0 });
+    const startTime = Date.now();
+    store.set('meta:key:1', { data: 'test' }, 45);
+
+    const metadata = store.getMetadata('meta:key:1');
+    assert.ok(metadata);
+    assert.equal(metadata.key, 'meta:key:1');
+    assert.ok(metadata.createdAt >= startTime);
+    assert.equal(metadata.expiresAt, metadata.createdAt + (45 * 1000));
+    assert.equal(metadata.ttl, 45);
+
+    // Non-existent key returns null
+    assert.equal(store.getMetadata('nonexistent'), null);
+
+    store.clear();
+  });
+
+  test('8. Cache replacement: overwriting key updates value, TTL, and refreshed timestamps', async () => {
+    const store = new CacheStore({ cleanupIntervalMs: 0 });
+    store.set('replace:key', 'initial-value', 10);
+    const meta1 = store.getMetadata('replace:key');
+
+    // Wait a tiny bit (10ms) to ensure distinct millisecond timestamps
+    await new Promise((resolve) => setTimeout(resolve, 15));
+
+    store.set('replace:key', 'updated-value', 30);
+    const meta2 = store.getMetadata('replace:key');
+
+    assert.equal(store.get('replace:key'), 'updated-value');
+    assert.ok(meta2.createdAt > meta1.createdAt);
+    assert.ok(meta2.expiresAt > meta1.expiresAt);
+    assert.equal(meta2.ttl, 30);
+    assert.equal(store.size(), 1);
+
+    store.clear();
+  });
+
+  test('9. Default 60-second TTL applies when TTL parameter is omitted', () => {
+    const store = new CacheStore({ cleanupIntervalMs: 0 });
+    store.set('default:ttl:key', 'default-val');
+
+    const meta = store.getMetadata('default:ttl:key');
+    assert.equal(meta.ttl, 60);
+    assert.equal(meta.expiresAt, meta.createdAt + 60000);
+
+    store.clear();
+  });
 });
