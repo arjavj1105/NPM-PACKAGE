@@ -1,5 +1,5 @@
 {
-  "name": "express-response-cache",
+  "name": "express-response-cache-middleware",
   "version": "1.0.0",
   "description": "Lightweight, zero-dependency in-memory response caching and tag-based invalidation middleware for Express.js",
   "main": "src/index.js",
@@ -18,15 +18,12 @@
   },
   "keywords": [
     "express",
-    "cache",
-    "middleware",
-    "in-memory",
+    "express-middleware",
     "response-cache",
-    "ttl",
-    "invalidation",
+    "http-cache",
+    "in-memory-cache",
     "cache-invalidation",
-    "tag-based",
-    "performance"
+    "nodejs"
   ],
   "author": "Arjav Jain",
   "license": "MIT",

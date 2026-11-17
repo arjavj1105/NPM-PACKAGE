@@ -1,4 +1,4 @@
-# express-response-cache
+# express-response-cache-middleware
 
 A lightweight, zero-dependency in-memory response caching and automatic invalidation middleware for Express.js applications.
 
@@ -12,7 +12,7 @@ Designed to eliminate redundant database queries and API calls by transparently 
 - **Default 60-Second TTL**: Sensible 60-second expiration out of the box, with simple per-route or global customization.
 - **Automatic Cache Invalidation**: Automatically clears related cached responses following successful mutation requests (`POST`, `PUT`, `PATCH`, `DELETE`).
 - **Resource Tagging System**: Group cache entries under logical resource tags (e.g., `'products'`, `'product:1'`) for targeted, granular invalidation without clearing unrelated caches.
-- **In-Memory Storage**: High-performance key-value store with sub-millisecond lookups and secondary tag indexing (`O(1)` access).
+- **In-Memory Storage**: Efficient key-value storage with secondary tag indexing for targeted cache invalidation.
 - **Intelligent Query Normalization**: Eliminates cache misses caused by differing query parameter orders (e.g., `?sort=asc&limit=10` and `?limit=10&sort=asc` share the same cache key).
 - **Header Preservation**: Safely preserves application headers (e.g., `Content-Type`, `Cache-Control`, `ETag`, and custom app headers) across cache hits while excluding transient transport headers.
 - **Cache Status Headers**: Inspect responses with `X-Cache: HIT` or `X-Cache: MISS` alongside `X-Cache-Timestamp`.
@@ -31,7 +31,7 @@ Designed to eliminate redundant database queries and API calls by transparently 
 ## Installation
 
 ```bash
-npm install express-response-cache
+npm install express-response-cache-middleware
 ```
 
 ---
@@ -40,7 +40,7 @@ npm install express-response-cache
 
 ```javascript
 const express = require('express');
-const cache = require('express-response-cache');
+const cache = require('express-response-cache-middleware');
 
 const app = express();
 
@@ -94,7 +94,7 @@ app.get('/api/dashboard', cache({ keyGenerator: customKeyGen }), handler);
 When client applications perform write operations (mutations like creating, updating, or deleting data), previously cached GET responses become **stale**. Automatic cache invalidation ensures that as soon as a mutation succeeds, the outdated cached responses are purged so subsequent reads fetch fresh data immediately.
 
 ### How Resource Tags Work
-Instead of hardcoding endpoint paths, `express-response-cache` uses **Resource Tags**:
+Instead of hardcoding endpoint paths, `express-response-cache-middleware` uses **Resource Tags**:
 1. When caching a `GET` route, you attach one or more tags (static string, array of strings, or dynamic resolver function).
 2. When configuring a mutation route (`POST`, `PUT`, `PATCH`, `DELETE`), you specify which tags should be invalidated upon success.
 3. When the mutation completes with an HTTP 2xx status, all cache entries associated with those tags are evicted.
@@ -111,7 +111,7 @@ Below is a complete, runnable example demonstrating GET response caching, tag as
 
 ```javascript
 const express = require('express');
-const cache = require('express-response-cache');
+const cache = require('express-response-cache-middleware');
 
 const app = express();
 app.use(express.json());
@@ -216,7 +216,7 @@ app.listen(3000, () => console.log('Listening on http://localhost:3000'));
 
 ## Error-Handling & Failed Mutation Protection
 
-`express-response-cache` hooks into the final response `'finish'` lifecycle event and checks the actual HTTP status code:
+`express-response-cache-middleware` hooks into the final response `'finish'` lifecycle event and checks the actual HTTP status code:
 
 - **HTTP 200–299 (Success)**: Invalidation occurs safely.
 - **HTTP 4xx (Client Errors, e.g. 400 Bad Request, 404 Not Found)**: Invalidation is **skipped**; cached responses remain preserved.
@@ -254,7 +254,7 @@ app.listen(3000, () => console.log('Listening on http://localhost:3000'));
 If you need to manually clear caches, invalidate by tag, or inspect metadata outside route middleware:
 
 ```javascript
-const cache = require('express-response-cache');
+const cache = require('express-response-cache-middleware');
 
 // Invalidate all entries tagged with 'products'
 const removedCount = cache.invalidateByTag('products');
@@ -271,7 +271,7 @@ cache.clear();
 For modular microservices, multi-tenant setups, or tests requiring completely isolated stores:
 
 ```javascript
-const { createCache } = require('express-response-cache');
+const { createCache } = require('express-response-cache-middleware');
 
 const { middleware, invalidate, store } = createCache({ ttl: 45 });
 
@@ -304,21 +304,31 @@ store.invalidateByTag('reports');
 
 ## Demonstration Application
 
-A fully structured example app following `Route → Middleware → Controller → Service → Database` is included in the `examples/` directory.
+A fully structured example application following `Route → Middleware → Controller → Service → Database` is available in the `examples/` directory of the [GitHub source repository](https://github.com/arjavj1105/NPM-PACKAGE).
 
-Run the demonstration server:
+> **Note**: To keep the published npm package minimal and lightweight, the `examples/` directory is not bundled into the installed npm package. It can be accessed directly from the repository.
 
+### Running the Demonstration from the Repository
+
+1. Clone the repository and install dependencies:
+```bash
+git clone https://github.com/arjavj1105/NPM-PACKAGE.git
+cd NPM-PACKAGE
+npm install
+```
+
+2. Start the demonstration server (verified script: `npm run start:example`):
 ```bash
 npm run start:example
 ```
 
-Test caching and invalidation using `curl`:
+3. Test caching and automatic invalidation using `curl`:
 
 ```bash
-# 1. First fetch (MISS ~ 200ms database delay)
+# 1. First fetch (MISS — query executed)
 curl -i http://localhost:3000/products
 
-# 2. Repeated fetch (HIT < 2ms)
+# 2. Repeated fetch (HIT — served directly from cache)
 curl -i http://localhost:3000/products
 
 # 3. Create a new product (Mutate collection)
@@ -326,7 +336,7 @@ curl -i -X POST http://localhost:3000/products \
   -H "Content-Type: application/json" \
   -d '{"name": "Ultra-Wide Monitor", "price": 499.99}'
 
-# 4. Collection fetch is immediately invalidated (MISS ~ 200ms) with new data!
+# 4. Collection fetch is immediately invalidated (MISS — fetches fresh data)
 curl -i http://localhost:3000/products
 ```
 
